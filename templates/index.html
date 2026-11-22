@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Invoice Extractor</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1d2330; }
+  h1 { font-size: 22px; }
+  form { display: flex; gap: 8px; flex-wrap: wrap; padding: 16px; border: 1px dashed #c7cbd3; border-radius: 10px; }
+  button { padding: 8px 14px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font: inherit; cursor: pointer; }
+  button:disabled { opacity: .6; }
+  .status { margin: 16px 0 8px; font-weight: 600; }
+  .complete { color: #15803d; } .needs_review { color: #b45309; } .failed { color: #b91c1c; }
+  ul { color: #b45309; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 16px; border-radius: 10px; overflow: auto; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>Invoice Extractor</h1>
+<p>Upload a PDF invoice and get validated, structured JSON back.</p>
+<form id="f">
+  <input type="file" name="file" accept="application/pdf" required>
+  <button id="btn">Extract</button>
+</form>
+<div class="status" id="status"></div>
+<ul id="issues"></ul>
+<pre id="out" hidden></pre>
+<script>
+const f = document.getElementById("f"), btn = document.getElementById("btn");
+const statusEl = document.getElementById("status"), issues = document.getElementById("issues"), out = document.getElementById("out");
+f.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  btn.disabled = true; statusEl.className = "status"; statusEl.textContent = "Processing..."; issues.innerHTML = ""; out.hidden = true;
+  try {
+    const res = await fetch("/api/extract", { method: "POST", body: new FormData(f) });
+    const job = await res.json();
+    statusEl.className = "status " + job.status;
+    statusEl.textContent = job.error ? `Failed: ${job.error}` : `Status: ${job.status.replace("_", " ")}`;
+    if (job.result) {
+      const notes = [...job.result.missing_fields.map((m) => `Missing: ${m}`), ...job.result.warnings];
+      issues.innerHTML = notes.map((n) => `<li>${n.replace(/</g, "&lt;")}</li>`).join("");
+      out.textContent = JSON.stringify(job.result.data, null, 2);
+      out.hidden = false;
+    }
+  } catch (err) {
+    statusEl.className = "status failed"; statusEl.textContent = "Request failed: " + err.message;
+  } finally { btn.disabled = false; }
+});
+</script>
+</body>
+</html>
